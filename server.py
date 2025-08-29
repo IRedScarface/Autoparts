@@ -24,7 +24,7 @@ app = FastAPI()
 
 
 
-# autoparts.py aynı klasörde olmalı
+# autoparts.py must be in the same directory
 from autoparts import (
     _comp_lines as comp_lines,
     ai_chat_ollama,
@@ -46,7 +46,7 @@ DEFAULT_OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "gpt-oss:20b")
 
 app = FastAPI(title=APP_NAME)
 
-# CORS: geliştirme için geniş açık. İstersen belirli origin'lere daralt.
+# CORS: wide open for development; restrict to specific origins if needed.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -85,7 +85,7 @@ def health():
 
 
 def resource_path(rel):
-    base = getattr(sys, "_MEIPASS", None)  # PyInstaller içinden çalışırken
+    base = getattr(sys, "_MEIPASS", None)  # when running from PyInstaller
     return os.path.join(base if base else os.path.abspath("."), rel)
 
 STATIC_DIR = resource_path("ui/dist")
@@ -152,7 +152,7 @@ def analyze_source(
         {"module_name": c.module_name, "names": c.names, "lines": comp_lines(c)}
         for c in components
     ]
-    # Bağımlılık kenarları
+    # Dependency edges
     edges = []
     for c in components:
         own = set(c.names)
@@ -296,7 +296,7 @@ def _detect_language_label(language: str) -> str:
         return "tr"
     if lang.startswith("en"):
         return "en"
-    return "tr"  # UI varsayılanı
+    return "tr"  # UI default
 
 
 # ------------------- Model I/O: robustness helpers -------------------
@@ -306,18 +306,18 @@ def _strip_code_fences(text: str) -> str:
     ```language
     ...code...
     ```
-    ile benzeri fence'leri kaldır; içeriği koru.
+    remove such fences and keep the content.
     """
     if not text:
         return text
-    # Çok satırlı blokları al
+    # Capture multi-line blocks
     text = re.sub(
         r"```(?:[a-zA-Z0-9_+\-\.]+)?\s*\n([\s\S]*?)\n```",
         r"\1",
         text,
         flags=re.MULTILINE,
     )
-    # Serseri backtick'ler
+    # Stray backticks
     text = re.sub(r"```(?:[a-zA-Z0-9_+\-\.]+)?", "", text)
     text = text.replace("```", "")
     return text.strip()
@@ -326,14 +326,14 @@ def _strip_code_fences(text: str) -> str:
 def _quality_too_low(edited: str, original: str) -> bool:
     if not edited or not edited.strip():
         return True
-    # Çok kısa veya orijinalin %20'sinden kısa ise
+    # Very short or less than 20% of the original
     if len(edited.strip()) < max(20, int(len(original) * 0.2)):
         return True
-    # Orijinal ile neredeyse aynı (<= %2 fark)
+    # Almost identical to the original (<= 2% difference)
     if abs(len(edited) - len(original)) <= max(20, int(len(original) * 0.02)):
         if edited.strip() == original.strip():
             return True
-    # Kod belirtisi yok gibi (çok nadir ama koruyucu)
+    # Appears to lack code markers (rare but protective)
     if not re.search(r"\b(def |class |import |from )", edited):
         return True
     return False
@@ -364,21 +364,18 @@ def _format_docstring_for_function(node: ast.FunctionDef, lang: str) -> str:
         for a in getattr(getattr(node, "args", None), "args", [])
         if getattr(a, "arg", "")
     ]
-    if lang == "en":
-        return f"Function {name}." if not args else f"Function {name}. Parameters: {', '.join(args)}."
-    # Turkish
-    return f"{name} fonksiyonu." if not args else f"{name} fonksiyonu. Parametreler: {', '.join(args)}."
+    return f"Function {name}." if not args else f"Function {name}. Parameters: {', '.join(args)}."
 
 
 def _format_docstring_for_class(node: ast.ClassDef, lang: str) -> str:
     """Return a minimal, placeholder-free docstring for a class."""
     name = getattr(node, "name", "Class")
-    return (f"Class {name}." if lang == "en" else f"{name} sınıfı.")
+    return f"Class {name}."
 
 
 def _format_docstring_for_module(lang: str) -> str:
     """Return a minimal, placeholder-free module docstring."""
-    return ("Module description." if lang == "en" else "Modül açıklaması.")
+    return "Module description."
 
 
 class _UsedNames(ast.NodeVisitor):
@@ -470,7 +467,7 @@ def _sort_imports(tree: ast.Module) -> ast.Module:
 
 
 def _annotate_simple_types(tree: ast.Module) -> ast.Module:
-    # Varsayılanı literal olan ve annotasyonu olmayan parametreler için basit type hint
+    # Simple type hint for parameters with literal defaults and no annotation
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
             args = node.args
@@ -622,9 +619,9 @@ def _try_parse_python(text: str) -> bool:
     except Exception:
         return False
 
-# --- yardımcı kontroller (bir kez ekleyin) ---
+# --- helper checks (add once) ---
 _FORBIDDEN_TOKENS_RE = re.compile(r"\b(?:TODO|TBD|FIXME)\b", re.IGNORECASE)
-# ör. '"""doc"""' gibi tek tırnak içine gömülü üçlü çift tırnak artefaktlarını yakalar
+# e.g., catches triple-double quotes embedded in single quotes like '"""doc"""'
 _QUOTE_ARTIFACTS_RE = re.compile(r"(\'\s*\"\"\"|\"\"\"\s*\'|\'\'\'\s*\"\"\"|\"\"\"\s*\'\'\')")
 
 def _has_forbidden_tokens(text: str) -> bool:
@@ -657,7 +654,7 @@ def get_ai_edited(
 ) -> str:
     lang_dir = _lang_directive(language)
 
-    # 1) Chat tarzı dene (tercihli)
+    # 1) Try chat style (preferred)
     sys_prompt = PROMPT_TEMPLATES["sys_editor"].format(lang_directive=(lang_dir or ""))
     user_prompt = PROMPT_TEMPLATES["user_editor"].format(
         filename=filename or "input.py",
@@ -670,11 +667,11 @@ def get_ai_edited(
     m = re.search(r"<FILE>(.*)</FILE>", raw, flags=re.DOTALL | re.IGNORECASE)
     edited = _strip_code_fences((m.group(1) if m else raw).strip())
 
-    # Sıkı doğrulamalar: yasaklı kelimeler, docstring artefaktı ve parse
+    # Strict validations: forbidden words, docstring artifacts, and parsing
     if _passes_strict_validations(edited) and not _quality_too_low(edited, src):
         return edited
 
-    # 2) Fallback: /api/generate ile doğrudan üret
+    # 2) Fallback: generate directly via /api/generate
     gen_prompt = PROMPT_TEMPLATES["gen_editor"].format(
         instruction=instruction, src=src, lang_directive=(lang_dir or "")
     )
@@ -683,7 +680,7 @@ def get_ai_edited(
     if _passes_strict_validations(edited2) and not _quality_too_low(edited2, src):
         return edited2
 
-    # 3) Yerel güvenli düzenleme (TODO/artefakt üretmez)
+    # 3) Local safe editing (produces no TODO/artifacts)
     return _local_edit(src, instruction, language)
 
 
@@ -860,7 +857,7 @@ async def build(
 
         _write_runner_single(final_pkg, out_dir, module_names, has_main)
 
-        # ZIP oluştur
+        # Create ZIP
         zip_buf = io.BytesIO()
         with zipfile.ZipFile(zip_buf, "w", zipfile.ZIP_DEFLATED) as zf:
             for path in out_dir.rglob("*"):
@@ -900,7 +897,7 @@ async def build_multi(
             try:
                 tree = ast.parse(src)
             except SyntaxError as e:
-                # Hatalı dosyayı atla ve rapora ekle
+                # Skip invalid file and add to report
                 (root_out / f"ERROR_{Path(f.filename or 'file.py').name}.txt").write_text(
                     f"SyntaxError: {e}", encoding="utf-8"
                 )
