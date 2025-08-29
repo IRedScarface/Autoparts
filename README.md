@@ -38,7 +38,7 @@ cd <REPO_NAME>
 
 python -m venv .venv
 # Windows
-.\.venv\Scriptsctivate
+.\.venv\Scripts\activate
 # macOS / Linux
 source .venv/bin/activate
 
