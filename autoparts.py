@@ -1,19 +1,20 @@
 #!/usr/bin/env python3
 r"""
-AI destekli ve kompakt çıktı odaklı autoparts sürümü.
+AI-powered and compact output-focused version of autoparts.
 
-YENİLER (v3)
-- --ai-name: Paket adını dosya içeriğine göre YAPAY ZEKA ile önerir (OpenAI veya Ollama).
-  * Çalışmazsa akıllı yerel sezgisel isimlendirmeye geri döner.
-- --compact: Tek seçenekle "çok dosya olmasın" ayarı (0..3). Eşikleri otomatik ayarlar.
-- --min-module-lines ve --target-modules: Modüller küçükse birleştir,
-  hedef modül sayısına inene kadar en küçükleri kaynaştır.
-- İsim önericisi: Docstring/yorumlar/sınıf-fonksiyon adlarından anahtar kelime çıkarımı.
+NEW (v3)
+- --ai-name: AI-suggests package name based on file content (OpenAI or Ollama).
+* If not, falls back to intelligent local heuristic naming.
+- --compact: Single option "no files" (0..3). Automatically sets thresholds.
+- --min-module-lines and --target-modules: Merge modules if they are small,
 
-NOTLAR
-- OpenAI için OPENAI_API_KEY ortam değişkeni gerekir. Modeli --ai-model ile verin (ör. gpt-4o-mini).
-- Ollama için localhost:11434 varsayılır; --ai-model (ör. mistral) verin; --ai-base-url ile özelleştirilebilir.
-- Dinamik import/exec vb. kısıtlar önceki sürümle aynı.
+merge the smallest ones until the target module count is reached.
+- Name suggester: Keyword extraction from docstring/comments/class-function names.
+
+NOTES
+- OpenAI requires the OPENAI_API_KEY environment variable. Provide the model with --ai-model (e.g., gpt-4o-mini).
+- Ollama assumes localhost:11434; --ai-model (e.g., mistral) give; can be customized with --ai-base-url.
+- Dynamic import/exec restrictions, etc., are the same as the previous version.
 """
 
 from __future__ import annotations
