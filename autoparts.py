@@ -31,15 +31,15 @@ from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Sequence
 from urllib import request, error
 
-# ---------- Veri tipleri ----------
+# ---------- Data types ----------
 
 @dataclass
 class TopLevelItem:
-    name: str                # tanım adı (veya sabit adı)
+    name: str                # definition name (or constant name)
     kind: str                # "class" | "func" | "assign"
-    node: ast.AST            # AST düğümü
-    source: str              # orijinal kaynak segmenti
-    deps: Set[str] = field(default_factory=set)   # diğer üst düzey isimlere bağımlılıklar
+    node: ast.AST            # AST node
+    source: str              # original source segment
+    deps: Set[str] = field(default_factory=set)   # dependencies on other top-level names
 
 @dataclass
 class Component:
@@ -57,7 +57,7 @@ def write_text(p: Path, text: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text, encoding="utf-8")
 
-# ---------- İsim/Modül adı ----------
+# ---------- Name/Module name ----------
 
 _identifier_re = re.compile(r"[^0-9a-zA-Z_]+")
 
@@ -76,6 +76,7 @@ def to_snake(name: str) -> str:
 
 
 def ensure_unique_module_name(base: str, used: Set[str]) -> str:
+    """Ensure module names are unique within a package by suffixing integers."""
     if base not in used:
         used.add(base)
         return base
@@ -88,6 +89,7 @@ def ensure_unique_module_name(base: str, used: Set[str]) -> str:
 
 
 def module_name_for_component(names: List[str]) -> str:
+    """Generate a compact module name from the component's contained top-level names."""
     parts = [to_snake(n) for n in names if n]
     base = parts[0] if parts else "module"
     for extra in parts[1:3]:
@@ -97,7 +99,7 @@ def module_name_for_component(names: List[str]) -> str:
         base = base[:40].rstrip("_")
     return base or "module"
 
-# ---------- AI İsim Önerici ----------
+# ---------- AI Name Suggester ----------
 
 TR_STOP = {
     "ve","ile","da","de","bir","bu","şu","o","için","olan","gibi","çok","az","en",
@@ -112,6 +114,7 @@ _VALID_NAME_RE = re.compile(r"^[a-z0-9_]{3,30}$")
 
 
 def _freq_keywords(text: str, extra: Sequence[str] = ()) -> List[str]:
+    """Return the most frequent non-stopword tokens (boosting `extra`)."""
     counts: Dict[str, int] = {}
     for token in _WORD_RE.findall(text.lower()):
         if token in TR_STOP or token in EN_STOP:
@@ -127,10 +130,11 @@ def _freq_keywords(text: str, extra: Sequence[str] = ()) -> List[str]:
 
 
 def local_heuristic_name(input_path: Path, src: str, tree: ast.Module, items: List[TopLevelItem]) -> str:
+    """Heuristically suggest a package name by extracting keywords from docstring and early comments."""
     doc = ast.get_docstring(tree) or ""
     top_names = [it.name for it in items]
     comments = []
-    # İlk ~80 satırda yorumlar
+    # Comments within the first ~80 lines
     for i, line in enumerate(src.splitlines()[:80]):
         s = line.strip()
         if s.startswith("#"):
@@ -183,6 +187,10 @@ def ai_chat_ollama(messages: List[Dict[str, str]], model: str, base_url: Optiona
 
 def ai_suggest_name(input_path: Path, src: str, tree: ast.Module, items: List[TopLevelItem], *,
                     provider: Optional[str], model: Optional[str], base_url: Optional[str]) -> Optional[str]:
+    """
+    Ask an AI provider (OpenAI or Ollama) for a concise snake_case package name.
+    Returns `None` on failure or if constraints are not met.
+    """
     if not provider or not model:
         return None
     doc = ast.get_docstring(tree) or ""
@@ -207,10 +215,15 @@ def ai_suggest_name(input_path: Path, src: str, tree: ast.Module, items: List[To
         return cand
     return None
 
-# ---------- AST Analizi ----------
+# ---------- AST Analysis ----------
 
 class DependencyVisitor(ast.NodeVisitor):
-    """Bir düğüm içinde üst düzey isim kullanımını bulur (Load/Name) + anotasyon/dekoratör/bases."""
+    """Find usage of top-level names within a node (Load/Name) + annotations/decorators/bases.
+
+    This walks through functions and classes to collect references to *other* top-level symbols
+    in the same file. Those references are later used to group strongly related definitions
+    into the same module.
+    """
 
     def __init__(self, top_level_names: Set[str]):
         self.top_level_names = top_level_names
@@ -261,13 +274,14 @@ def get_source_segment(source: str, node: ast.AST) -> str:
 
 
 def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLevelItem], List[str], Optional[str], Optional[str]]:
-    """returns: (items, imports, main_block_src, module_docstring)"""
+    """Returns (items, imports, main_block_src, module_docstring)."""
     items: List[TopLevelItem] = []
     imports: List[str] = []
     main_block: Optional[str] = None
 
     module_doc = ast.get_docstring(tree)
 
+    # Collect candidate top-level names first (to resolve dependencies later)
     top_names: Set[str] = set()
     for node in tree.body:
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
@@ -306,7 +320,7 @@ def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLeve
         else:
             pass
 
-    # Bağımlılıklar
+    # Dependencies
     name_set = {i.name for i in items}
     for it in items:
         v = DependencyVisitor(name_set)
@@ -320,6 +334,12 @@ def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLeve
 
 
 def strongly_connected_components(graph: Dict[str, Set[str]]) -> List[List[str]]:
+    """
+    Tarjan's algorithm to compute strongly connected components.
+
+    We use SCCs so that mutually-dependent top-level symbols (A uses B and B uses A)
+    end up in the same module, preventing circular import issues across files.
+    """
     index = 0
     indices: Dict[str, int] = {}
     lowlink: Dict[str, int] = {}
@@ -360,10 +380,17 @@ def strongly_connected_components(graph: Dict[str, Set[str]]) -> List[List[str]]
 
     return components
 
-# ---------- Bileşen inşa ----------
+# ---------- Component construction ----------
 
 
 def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[str, str]]:
+    """
+    Group top-level items into SCC-based components and assign initial module names.
+
+    Returns:
+      components: list of Component objects
+      name_to_module: mapping from top-level symbol -> proposed module name
+    """
     item_by_name = {it.name: it for it in items}
     graph: Dict[str, Set[str]] = {it.name: set(it.deps) for it in items}
     sccs = strongly_connected_components(graph)
@@ -381,7 +408,7 @@ def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[s
         for n in comp_names:
             name_to_module[n] = module
 
-    # Dış bağımlılık sayısına göre kaba sıralama (bağımlı olanlar sonra)
+    # Coarse ordering by external dependency count (those with deps come later).
     def external_dep_count(c: Component) -> int:
         s = set(c.names)
         deps = set()
@@ -392,7 +419,7 @@ def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[s
     components.sort(key=external_dep_count)
     return components, name_to_module
 
-# ---------- Re-pack (GRUPLAMA / PAKETLEME) ----------
+# ---------- Re-pack (GROUPING / PACKAGING) ----------
 
 
 def _item_lines(it: TopLevelItem) -> int:
@@ -415,6 +442,7 @@ def merge_components(a: Component, b: Component, new_name: Optional[str] = None)
 
 
 def rebuild_name_to_module(components: List[Component]) -> Dict[str, str]:
+    """Rebuild name->module mapping after components have been merged/renamed."""
     m: Dict[str, str] = {}
     for c in components:
         for it in c.items:
@@ -433,9 +461,22 @@ def repack_components(
     min_module_lines: int = 0,
     target_modules: Optional[int] = None,
 ) -> Tuple[List[Component], Dict[str, str]]:
+    """
+    Apply practical packing heuristics to reduce module count and produce tidy package layout.
+
+    Heuristics:
+      1) Group pure assignment components into a 'constants' module.
+      2) Pack very small modules into a 'core' module (threshold: pack_small_lines).
+      3) Limit module count by repeatedly merging the two smallest movable modules.
+      3.5) Ensure each module is at least `min_module_lines` lines by merging small ones.
+      4) If `target_modules` set, further shrink to that exact count.
+
+    Returns:
+      (updated_components, updated_name_to_module)
+    """
     comps = list(components)
 
-    # 1) Atamaları tek modülde grupla
+    # 1) Group assignments into a single module
     if group_assignments:
         assign_comps = [c for c in comps if _assign_only(c)]
         if len(assign_comps) > 1:
@@ -445,7 +486,7 @@ def repack_components(
             merged.module_name = "constants"
             comps = [c for c in comps if c not in assign_comps] + [merged]
 
-    # 2) Küçük modülleri core’da topla
+    # 2) Pack small modules into 'core'
     if pack_small_lines and pack_small_lines > 0:
         small = [c for c in comps if _comp_lines(c) < pack_small_lines and not _assign_only(c)]
         if len(small) > 1:
@@ -455,7 +496,7 @@ def repack_components(
             core.module_name = "core"
             comps = [c for c in comps if c not in small] + [core]
 
-    # Yardımcı: en küçük taşınabilir çiftleri birleştir
+    # Helper: merge the two smallest movable components once
     def merge_smallest_once() -> bool:
         pinned = {"constants", "core"}
         movable = [c for c in comps if c.module_name not in pinned]
@@ -467,21 +508,21 @@ def repack_components(
         comps[:] = [c for c in comps if c not in (a, b)] + [merged]
         return True
 
-    # 3) Modül sayısını sınırlama (constants/core sabit kalsın)
+    # 3) Limit the number of modules (keep constants/core intact)
     while max_modules and len(comps) > max_modules:
         if not merge_smallest_once():
             break
 
-    # 3.5) Min satır eşiğine kadar birleştir
+    # 3.5) Merge until the minimum lines threshold is met
     if min_module_lines and min_module_lines > 0:
         changed = True
         while changed:
             changed = False
-            # En küçük modüller eşiğin altındaysa birleştir
+            # If smallest modules are below threshold, merge them
             smallers = [c for c in comps if _comp_lines(c) < min_module_lines and c.module_name not in {"constants", "core"}]
             smallers.sort(key=_comp_lines)
             for s in list(smallers):
-                # en küçük başka biriyle birleştir
+                # Merge with another smallest module
                 others = [c for c in comps if c is not s and c.module_name not in {"constants", "core"}]
                 if not others:
                     break
@@ -491,22 +532,23 @@ def repack_components(
                 changed = True
                 break
 
-    # 4) Hedef modül sayısına indir
+    # 4) Reduce to target module count
     if target_modules is not None and target_modules > 0:
         while len(comps) > target_modules:
             if not merge_smallest_once():
                 break
 
-    # 5) mapping'i baştan kur
+    # 5) Rebuild mapping from scratch
     name_to_module = rebuild_name_to_module(comps)
     return comps, name_to_module
 
-# ---------- Yazıcılar ----------
+# ---------- Renderers ----------
 
 HEADER = "# Generated by autoparts.py — DO NOT EDIT BY HAND\n"
 
 
 def _dedup_imports(imports: Sequence[str]) -> List[str]:
+    """Keep import statements unique while preserving order of first occurrence."""
     seen = set()
     out: List[str] = []
     for line in imports:
@@ -522,6 +564,14 @@ def render_module(
     all_imports: List[str],
     name_to_module: Dict[str, str],
 ) -> str:
+    """
+    Emit a module file:
+      - header
+      - de-duplicated imports (original top-level imports from the source file)
+      - intra-package imports for cross-component dependencies
+      - original source blocks (verbatim) for each item
+      - __all__ for explicit exports
+    """
     lines: List[str] = [HEADER]
 
     dedup_imps = _dedup_imports(all_imports)
@@ -557,6 +607,7 @@ def render_module(
 
 
 def render_init(components: List[Component], pkg_doc: Optional[str]) -> str:
+    """Emit package __init__.py that re-exports symbols from all component modules."""
     lines = [HEADER]
     if pkg_doc:
         lines.append('"""')
@@ -577,6 +628,7 @@ def render_init(components: List[Component], pkg_doc: Optional[str]) -> str:
 
 
 def extract_main_block_code(main_block_src: str) -> str:
+    """Extract the body of `if __name__ == '__main__':` block to place into __main__.py."""
     try:
         node = ast.parse(main_block_src)
         for n in node.body:
@@ -593,6 +645,7 @@ def extract_main_block_code(main_block_src: str) -> str:
 
 
 def render_main(init_reexport: bool, main_body: str) -> str:
+    """Emit __main__.py optionally re-exporting package names, then running original main body."""
     lines = [HEADER]
     if init_reexport:
         lines.append("from . import *  # re-exported names from package")
@@ -601,7 +654,7 @@ def render_main(init_reexport: bool, main_body: str) -> str:
     lines.append("")
     return "\n".join(lines)
 
-# ---------- Tek dosya işlem ----------
+# ---------- Single-file processing ----------
 
 
 def plan_and_write_single(
@@ -622,7 +675,7 @@ def plan_and_write_single(
     ai_base_url: Optional[str] = None,
     verbose: bool = True,
 ) -> bool:
-    """Tek dosyayı paketlere bölüp yazar. Başarılıysa True döner."""
+    """Split a single Python file into a package of modules and write them. Returns True on success."""
     try:
         src = read_text(input_file)
     except Exception as e:
@@ -666,7 +719,7 @@ def plan_and_write_single(
     if dry_run:
         return True
 
-    # Paket adı: CLI > AI > yerel sezgisel > dosya adı
+    # Final package name: CLI > AI > heuristic > filename
     final_pkg_name = pkg_name
     if final_pkg_name:
         final_pkg_name = to_snake(final_pkg_name)
@@ -694,12 +747,12 @@ def plan_and_write_single(
         return False
     package_dir.mkdir(parents=True, exist_ok=True)
 
-    # Aynı paket içinde modül adı çakışması engeli
+    # Prevent module-name collisions within the package
     used_mod_names: Set[str] = set()
     for comp in components:
         comp.module_name = ensure_unique_module_name(comp.module_name, used_mod_names)
 
-    # Dosyaları yaz
+    # Write modules
     for comp in components:
         mod_path = package_dir / f"{comp.module_name}.py"
         text = render_module(comp, imports, name_to_module)
@@ -709,7 +762,7 @@ def plan_and_write_single(
     init_text = render_init(components, pkg_doc=mod_doc)
     write_text(package_dir / "__init__.py", init_text)
 
-    # __main__.py (varsa)
+    # __main__.py (if present)
     if main_block:
         body = extract_main_block_code(main_block)
         main_text = render_main(init_reexport=True, main_body=body)
@@ -718,7 +771,7 @@ def plan_and_write_single(
     print(f"[✓] Paket hazır: {package_dir}")
     return True
 
-# ---------- Toplu (batch) mod ----------
+# ---------- Batch mode ----------
 
 
 def discover_python_files(
@@ -729,6 +782,14 @@ def discover_python_files(
     ignore_tests: bool,
     min_lines: int,
 ) -> List[Path]:
+    """
+    Find Python files under a root directory according to include/exclude patterns.
+
+    Notes:
+      - Skips __init__.py.
+      - If `ignore_tests`, excludes common test paths/globs.
+      - If `min_lines` > 0, skips files with fewer lines than the threshold.
+    """
     files: List[Path] = []
 
     candidates: List[Path] = []
@@ -790,6 +851,12 @@ def batch_process(
     ai_model: Optional[str],
     ai_base_url: Optional[str],
 ) -> int:
+    """
+    Process multiple files or directories in batch:
+      - Discovers .py files under provided paths (honoring patterns/options).
+      - For each file, runs the single-file plan & write flow.
+      - Optionally renames the most-recently created package with a prefix.
+    """
     to_process: List[Path] = []
     for inp in inputs:
         if inp.is_dir():
@@ -809,9 +876,9 @@ def batch_process(
 
     ok = 0
     for f in to_process:
-        pkg_name = None  # batch modda AI/heuristic karar verecek
+        pkg_name = None  # In batch mode, AI/heuristic will decide
         if pkg_prefix:
-            # Ön ek AI/heuristic çıktısının başına eklensin
+            # The prefix will be applied after creation by renaming
             pass
         success = plan_and_write_single(
             input_file=f,
@@ -831,12 +898,11 @@ def batch_process(
             verbose=True,
         )
         if success:
-            # Plan&write içinde bulunan isim üzerine önek ekle (varsa) => klasörü yeniden adlandır
+            # After creation, if a prefix is requested, rename the latest created package dir.
             if pkg_prefix:
-                # çıktı dizini belirle
+                # Determine output root
                 out_root = out_dir or f.parent
-                # klasör(ler)i bul: en son oluşturulan paketi yakalamak için olası klasörler
-                # basit yaklaşım: out_root altındaki en yeni klasörü al
+                # Simple approach: pick the newest directory under output root
                 try:
                     candidates = [p for p in out_root.iterdir() if p.is_dir()]
                     latest = max(candidates, key=lambda p: p.stat().st_mtime)
@@ -867,7 +933,7 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="Sadece planı yazdır, dosya yazma")
     ap.add_argument("--force", action="store_true", help="Çıktı klasörü varsa üzerine yaz")
 
-    # Toplu mod seçenekleri
+    # Batch mode options
     ap.add_argument("--batch", action="store_true", help="Klasör girdileri için toplu modda çalış")
     ap.add_argument("--recursive", action="store_true", help="Toplu modda alt dizinleri tara")
     ap.add_argument("--include", action="append", default=["*.py"], help="Dahil desenleri (glob). Çoklu kullanılabilir.")
@@ -875,7 +941,7 @@ def main():
     ap.add_argument("--ignore-tests", action="store_true", help="tests/ klasörleri ve test dosyalarını atla")
     ap.add_argument("--min-lines", type=int, default=0, help="Bu satır sayısından küçük dosyaları atla (ör. 80)")
 
-    # Gruplama/pack seçenekleri (eski + yeni)
+    # Grouping/pack options (legacy + new)
     ap.set_defaults(group_assignments=True)
     ap.add_argument("--no-group-assignments", dest="group_assignments", action="store_false", help="Atamaları tek modülde gruplama özelliğini kapat")
     ap.add_argument("--pack-small-lines", type=int, default=40, help="Bu satır sayısından küçük modülleri 'core'da topla (0=kapalı)")
@@ -883,10 +949,10 @@ def main():
     ap.add_argument("--min-module-lines", type=int, default=0, help="Bir modül için minimum satır sayısı; altındakiler birleştirilir (0=kapalı)")
     ap.add_argument("--target-modules", type=int, default=None, help="Hedef modül sayısı; gerekirse en küçükleri birleştir")
 
-    # KOMPakt preset
+    # COMPACT preset
     ap.add_argument("--compact", type=int, choices=[0, 1, 2, 3], default=None, help="0=kapalı, 1=az, 2=orta, 3=agresif modül azaltma")
 
-    # AI isimlendirme
+    # AI naming
     ap.add_argument("--ai-name", action="store_true", help="Paket adını AI ile öner")
     ap.add_argument("--ai-provider", choices=["openai", "ollama"], default=None, help="AI sağlayıcı")
     ap.add_argument("--ai-model", default=None, help="AI modeli (örn. gpt-4o-mini / mistral)")
@@ -894,7 +960,7 @@ def main():
 
     args = ap.parse_args()
 
-    # Compact preset uygula
+    # Apply compact preset
     min_module_lines = args.min_module_lines
     pack_small_lines = args.pack_small_lines
     max_modules = args.max_modules
