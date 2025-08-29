@@ -26,10 +26,13 @@ import os
 import re
 import sys
 import json
+from dotenv import load_dotenv
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Set, Tuple, Optional, Sequence
 from urllib import request, error
+
+load_dotenv()
 
 # ---------- Data types ----------
 
@@ -1150,12 +1153,21 @@ def main():
         "--ai-name", action="store_true", help="Suggest package name with AI"
     )
     ap.add_argument(
-        "--ai-provider", choices=["openai", "ollama"], default=None, help="AI provider"
+        "--ai-provider",
+        choices=["openai", "ollama"],
+        default=os.getenv("AI_PROVIDER"),
+        help="AI provider",
     )
     ap.add_argument(
-        "--ai-model", default=None, help="AI model (e.g., gpt-4o-mini / mistral)"
+        "--ai-model",
+        default=os.getenv("AI_MODEL"),
+        help="AI model (e.g., gpt-4o-mini / mistral)",
     )
-    ap.add_argument("--ai-base-url", default=None, help="AI API base URL (optional)")
+    ap.add_argument(
+        "--ai-base-url",
+        default=os.getenv("AI_BASE_URL"),
+        help="AI API base URL (optional)",
+    )
 
     args = ap.parse_args()
 

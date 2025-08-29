@@ -12,6 +12,8 @@ import urllib.request
 import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
+
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, Form, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -32,6 +34,8 @@ from autoparts import (
     render_module,
     repack_components,
 )
+
+load_dotenv()
 
 APP_NAME = "autoparts API (Ollama, non-empty-safe)"
 DEFAULT_OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
