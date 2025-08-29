@@ -827,6 +827,14 @@ async def build(
         )
 
         final_pkg = package_name
+        # Sanitize final_pkg to avoid path traversal or illegal names
+        if final_pkg:
+            # Keep only alphanumeric, underscores, hyphens (and lowercase)
+            import re
+            final_pkg = re.sub(r'[^a-zA-Z0-9_\-]', '', final_pkg)
+            final_pkg = final_pkg.strip("._")  # Remove leading/trailing dots/underscores
+            if not final_pkg:
+                final_pkg = None
         if not final_pkg and ai_name:
             final_pkg = ai_suggest_name(
                 input_path=input_path,
@@ -841,7 +849,12 @@ async def build(
             final_pkg = (Path(file.filename or "pkg").stem.replace("-", "_") or "module").lower()
 
         out_dir = workdir / final_pkg
-        out_dir.mkdir(parents=True, exist_ok=True)
+        # Prevent path traversal: ensure out_dir is within workdir
+        resolved_out_dir = out_dir.resolve()
+        if not str(resolved_out_dir).startswith(str(workdir.resolve())):
+            return JSONResponse({"error": "Invalid package name. Try a simpler name."}, status_code=400)
+
+        resolved_out_dir.mkdir(parents=True, exist_ok=True)
 
         module_names = []
         for comp in components:
