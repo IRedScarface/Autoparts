@@ -135,3 +135,8 @@ ui/                # React + Vite + Tailwind web UI
 
 ---
 
+
+## Contributing
+
+Contributions are welcome! See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+A list of people who have contributed is available in [CONTRIBUTORS.md](CONTRIBUTORS.md).
