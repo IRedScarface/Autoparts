@@ -730,7 +730,9 @@ async def plan(
             )
         return JSONResponse({"plan": plan_obj, "ai_name": suggested})
     except SyntaxError as e:
-        return JSONResponse({"error": f"SyntaxError: {e}"}, status_code=400)
+        import logging
+        logging.exception("Syntax error encountered when processing /plan request.")
+        return JSONResponse({"error": "Invalid input: syntax error in provided code."}, status_code=400)
 
 
 @app.post("/plan_multi")
