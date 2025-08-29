@@ -2,17 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
-/* ===== Base (tam ekran ve arka plan) ===== */
+/* ===== Base (full screen and background) ===== */
 @layer base {
   html, body, #root { height: 100%; min-height: 100vh; }
 
   /* Light background + text */
   html { @apply bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900; }
 
-  /* Dark background + text  (doğru seçici: html.dark) */
+  /* Dark background + text (correct selector: html.dark) */
   html.dark { @apply bg-gradient-to-b from-neutral-950 to-neutral-900 text-gray-200; }
 
-  /* Arka planı html verir; body şeffaf kalsın */
+  /* Background provided by html; keep body transparent */
   body { @apply bg-transparent; }
 }
 
@@ -22,7 +22,7 @@
          dark:bg-neutral-900/90 dark:border-white/10 dark:text-gray-200;
 }
 
-/* Üst şerit (toolbar) */
+/* Top bar (toolbar) */
 header.toolbar {
   @apply sticky top-0 z-10 backdrop-blur-md
          bg-white/70 dark:bg-neutral-900/70
@@ -30,23 +30,23 @@ header.toolbar {
          dark:text-gray-200;
 }
 
-/* Butonlar */
+/* Buttons */
 .btn {
   @apply inline-flex items-center gap-2 rounded-xl border px-3 py-2
          hover:bg-gray-50 dark:hover:bg-white/5
          dark:border-white/10 dark:text-gray-200;
 }
 
-/* Form kontrolleri (dark) */
+/* Form controls (dark) */
 html.dark input,
 html.dark select,
 html.dark textarea {
   @apply bg-neutral-900/70 text-gray-100 border-white/10;
 }
 
-/* Placeholder kontrastı */
+/* Placeholder contrast */
 html.dark ::placeholder { color: rgba(229,231,235,.5); }
 
-/* React Flow (varsa) koyu zemin */
+/* React Flow (if any) dark background */
 html.dark .react-flow__renderer,
 html.dark .react-flow { background-color: #0b0f14 !important; }

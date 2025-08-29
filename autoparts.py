@@ -679,7 +679,7 @@ def plan_and_write_single(
     try:
         src = read_text(input_file)
     except Exception as e:
-        print(f"[!] {input_file}: okunamadı: {e}", file=sys.stderr)
+        print(f"[!] {input_file}: could not be read: {e}", file=sys.stderr)
         return False
 
     try:
@@ -691,7 +691,7 @@ def plan_and_write_single(
     items, imports, main_block, mod_doc = extract_top_level_items(src, tree)
     if not items:
         if verbose:
-            print(f"[-] {input_file}: üst düzey tanım yok, atlanıyor.")
+            print(f"[-] {input_file}: no top-level definitions, skipping.")
         return False
 
     components, name_to_module = build_components(items)
@@ -709,11 +709,11 @@ def plan_and_write_single(
     )
 
     if verbose:
-        print(f"\n== Bölme Planı: {input_file.name} ==")
+        print(f"\n== Split Plan: {input_file.name} ==")
         for c in components:
-            print(f"  - {c.module_name}: {', '.join(c.names)}  (~{_comp_lines(c)} satır)")
+            print(f"  - {c.module_name}: {', '.join(c.names)}  (~{_comp_lines(c)} lines)")
         if main_block:
-            print("  - __main__.py: if __name__ == '__main__' bloğu taşınacak")
+            print("  - __main__.py: if __name__ == '__main__' block will be moved")
         print("")
 
     if dry_run:
@@ -731,17 +731,17 @@ def plan_and_write_single(
         if ai:
             final_pkg_name = ai
             if verbose:
-                print(f"[i] AI paket adı: {final_pkg_name}")
+                print(f"[i] AI package name: {final_pkg_name}")
     if not final_pkg_name:
         final_pkg_name = local_heuristic_name(input_file, src, tree, items)
         if verbose:
-            print(f"[i] Heuristik paket adı: {final_pkg_name}")
+            print(f"[i] Heuristic package name: {final_pkg_name}")
 
     package_dir = (out_dir or input_file.parent) / final_pkg_name
 
     if package_dir.exists() and not force:
         print(
-            f"[!] Çıktı klasörü zaten var: {package_dir}  (--force ile üzerine yazabilirsiniz)",
+            f"[!] Output directory already exists: {package_dir}  (use --force to overwrite)",
             file=sys.stderr,
         )
         return False
@@ -768,7 +768,7 @@ def plan_and_write_single(
         main_text = render_main(init_reexport=True, main_body=body)
         write_text(package_dir / "__main__.py", main_text)
 
-    print(f"[✓] Paket hazır: {package_dir}")
+    print(f"[✓] Package ready: {package_dir}")
     return True
 
 # ---------- Batch mode ----------
@@ -863,15 +863,15 @@ def batch_process(
             files = discover_python_files(
                 inp, recursive, include_globs, exclude_globs, ignore_tests, min_lines
             )
-            print(f"[i] {inp}: {len(files)} dosya bulundu.")
+            print(f"[i] {inp}: {len(files)} file(s) found.")
             to_process.extend(files)
         elif inp.is_file() and inp.suffix == ".py":
             to_process.append(inp)
         else:
-            print(f"[-] Atlandı (py dosyası değil): {inp}")
+            print(f"[-] Skipped (not a .py file): {inp}")
 
     if not to_process:
-        print("[!] İşlenecek dosya bulunamadı.")
+        print("[!] No files to process found.")
         return 0
 
     ok = 0
@@ -908,12 +908,12 @@ def batch_process(
                     latest = max(candidates, key=lambda p: p.stat().st_mtime)
                     new_name = to_snake(pkg_prefix + latest.name)
                     latest.rename(out_root / new_name)
-                    print(f"[i] Paket yeniden adlandırıldı: {latest.name} -> {new_name}")
+                    print(f"[i] Package renamed: {latest.name} -> {new_name}")
                 except Exception:
                     pass
             ok += 1
 
-    print(f"\n[✓] Toplu işlem tamamlandı. Başarılı: {ok}/{len(to_process)}")
+    print(f"\n[✓] Batch process completed. Successful: {ok}/{len(to_process)}")
     return ok
 
 # ---------- CLI ----------
@@ -922,41 +922,41 @@ def batch_process(
 def main():
     ap = argparse.ArgumentParser(
         description=(
-            "Tek dosyalık Python kodunu modüllere bölüp paketleyen yardımcı (tekli veya toplu).\n"
-            "AI destekli isimlendirme ve kompakt mod seçenekleri içerir."
+            "Helper to split single-file Python code into modules and package them (single or batch).\n"
+            "Includes AI-assisted naming and compact mode options."
         )
     )
-    ap.add_argument("inputs", nargs="+", help="Bölünecek .py dosyası veya klasör(ler)")
-    ap.add_argument("-o", "--out-dir", default=None, help="Çıktı kök dizini (varsayılan: kaynak dosyanın konumu)")
-    ap.add_argument("--pkg-name", default=None, help="[TEK DOSYA] Oluşturulacak paket adı (varsayılan: AI/heuristic)")
-    ap.add_argument("--pkg-prefix", default="", help="[TOPLU] Paket adlarına eklenecek önek (örn. proj_)")
-    ap.add_argument("--dry-run", action="store_true", help="Sadece planı yazdır, dosya yazma")
-    ap.add_argument("--force", action="store_true", help="Çıktı klasörü varsa üzerine yaz")
+    ap.add_argument("inputs", nargs="+", help=".py file(s) or directories to split")
+    ap.add_argument("-o", "--out-dir", default=None, help="Output root directory (default: source file location)")
+    ap.add_argument("--pkg-name", default=None, help="[SINGLE FILE] Package name to create (default: AI/heuristic)")
+    ap.add_argument("--pkg-prefix", default="", help="[BATCH] Prefix to add to package names (e.g., proj_)")
+    ap.add_argument("--dry-run", action="store_true", help="Only print the plan, do not write files")
+    ap.add_argument("--force", action="store_true", help="Overwrite output directory if it exists")
 
     # Batch mode options
-    ap.add_argument("--batch", action="store_true", help="Klasör girdileri için toplu modda çalış")
-    ap.add_argument("--recursive", action="store_true", help="Toplu modda alt dizinleri tara")
-    ap.add_argument("--include", action="append", default=["*.py"], help="Dahil desenleri (glob). Çoklu kullanılabilir.")
-    ap.add_argument("--exclude", action="append", default=[], help="Hariç desenleri (glob). Çoklu kullanılabilir.")
-    ap.add_argument("--ignore-tests", action="store_true", help="tests/ klasörleri ve test dosyalarını atla")
-    ap.add_argument("--min-lines", type=int, default=0, help="Bu satır sayısından küçük dosyaları atla (ör. 80)")
+    ap.add_argument("--batch", action="store_true", help="Run in batch mode for directory inputs")
+    ap.add_argument("--recursive", action="store_true", help="Scan subdirectories in batch mode")
+    ap.add_argument("--include", action="append", default=["*.py"], help="Include patterns (glob). Can be used multiple times.")
+    ap.add_argument("--exclude", action="append", default=[], help="Exclude patterns (glob). Can be used multiple times.")
+    ap.add_argument("--ignore-tests", action="store_true", help="Skip tests/ directories and test files")
+    ap.add_argument("--min-lines", type=int, default=0, help="Skip files with fewer lines than this (e.g., 80)")
 
     # Grouping/pack options (legacy + new)
     ap.set_defaults(group_assignments=True)
-    ap.add_argument("--no-group-assignments", dest="group_assignments", action="store_false", help="Atamaları tek modülde gruplama özelliğini kapat")
-    ap.add_argument("--pack-small-lines", type=int, default=40, help="Bu satır sayısından küçük modülleri 'core'da topla (0=kapalı)")
-    ap.add_argument("--max-modules", type=int, default=12, help="En fazla modül sayısı (constants/core hariç birleştirilir)")
-    ap.add_argument("--min-module-lines", type=int, default=0, help="Bir modül için minimum satır sayısı; altındakiler birleştirilir (0=kapalı)")
-    ap.add_argument("--target-modules", type=int, default=None, help="Hedef modül sayısı; gerekirse en küçükleri birleştir")
+    ap.add_argument("--no-group-assignments", dest="group_assignments", action="store_false", help="Disable grouping assignments into a single module")
+    ap.add_argument("--pack-small-lines", type=int, default=40, help="Collect modules below this line count into 'core' (0=off)")
+    ap.add_argument("--max-modules", type=int, default=12, help="Maximum number of modules (merges smallest except constants/core)")
+    ap.add_argument("--min-module-lines", type=int, default=0, help="Minimum lines per module; merge below this (0=off)")
+    ap.add_argument("--target-modules", type=int, default=None, help="Target module count; merge smallest to reach it")
 
     # COMPACT preset
-    ap.add_argument("--compact", type=int, choices=[0, 1, 2, 3], default=None, help="0=kapalı, 1=az, 2=orta, 3=agresif modül azaltma")
+    ap.add_argument("--compact", type=int, choices=[0, 1, 2, 3], default=None, help="0=off, 1=low, 2=medium, 3=aggressive module reduction")
 
     # AI naming
-    ap.add_argument("--ai-name", action="store_true", help="Paket adını AI ile öner")
-    ap.add_argument("--ai-provider", choices=["openai", "ollama"], default=None, help="AI sağlayıcı")
-    ap.add_argument("--ai-model", default=None, help="AI modeli (örn. gpt-4o-mini / mistral)")
-    ap.add_argument("--ai-base-url", default=None, help="AI API base URL (opsiyonel)")
+    ap.add_argument("--ai-name", action="store_true", help="Suggest package name with AI")
+    ap.add_argument("--ai-provider", choices=["openai", "ollama"], default=None, help="AI provider")
+    ap.add_argument("--ai-model", default=None, help="AI model (e.g., gpt-4o-mini / mistral)")
+    ap.add_argument("--ai-base-url", default=None, help="AI API base URL (optional)")
 
     args = ap.parse_args()
 
@@ -1013,7 +1013,7 @@ def main():
     else:
         input_file = input_paths[0]
         if not input_file.exists():
-            print(f"[!] Girdi bulunamadı: {input_file}", file=sys.stderr)
+            print(f"[!] Input not found: {input_file}", file=sys.stderr)
             sys.exit(1)
         plan_and_write_single(
             input_file=input_file,

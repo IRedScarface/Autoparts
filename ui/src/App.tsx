@@ -416,12 +416,12 @@ const dict: Record<Lang, Record<string, string>> = {
 }
 
 const langList: {code: Lang, label: string, dir?: 'rtl'|'ltr'}[] = [
-  {code:'tr', label:'Türkçe', dir:'ltr'}, {code:'en', label:'English', dir:'ltr'}, {code:'de', label:'Deutsch', dir:'ltr'},
-  {code:'fr', label:'Français', dir:'ltr'}, {code:'es', label:'Español', dir:'ltr'}, {code:'ru', label:'Русский', dir:'ltr'},
-  {code:'ar', label:'العربية', dir:'rtl'}, {code:'zh', label:'中文', dir:'ltr'}, {code:'ja', label:'日本語', dir:'ltr'},
+  {code:'tr', label:'Turkish', dir:'ltr'}, {code:'en', label:'English', dir:'ltr'}, {code:'de', label:'German', dir:'ltr'},
+  {code:'fr', label:'French', dir:'ltr'}, {code:'es', label:'Spanish', dir:'ltr'}, {code:'ru', label:'Russian', dir:'ltr'},
+  {code:'ar', label:'Arabic', dir:'rtl'}, {code:'zh', label:'Chinese', dir:'ltr'}, {code:'ja', label:'Japanese', dir:'ltr'},
 ]
 function useUITranslations(){
-  const [uiLang, setUiLang] = useState<Lang>(()=> (localStorage.getItem('uiLang') as Lang) || 'tr')
+  const [uiLang, setUiLang] = useState<Lang>(()=> (localStorage.getItem('uiLang') as Lang) || 'en')
   useEffect(()=>{
     localStorage.setItem('uiLang', uiLang)
     const meta = langList.find(l=>l.code===uiLang)
@@ -601,7 +601,7 @@ export default function App(){
       fd.append('ollama_base_url', ollamaURL)
       fd.append('ollama_model', String(ollamaModel))
       const res = await fetch(`${API_BASE}/ai_edit`, { method: 'POST', body: fd })
-      const data = await res.json(); setEditedText(data.edited || ''); setEditProgress(100); setEditStatus('Tamamlandı')
+      const data = await res.json(); setEditedText(data.edited || ''); setEditProgress(100); setEditStatus('Completed')
     }else{
       const fd = new FormData()
       for(const f of files) fd.append('files', f, f.name)
@@ -610,7 +610,7 @@ export default function App(){
       fd.append('ollama_base_url', ollamaURL)
       fd.append('ollama_model', String(ollamaModel))
       const res = await fetch(`${API_BASE}/ai_edit_multi`, { method: 'POST', body: fd })
-      const blob = await res.blob(); setEditedZipURL(URL.createObjectURL(blob)); setEditProgress(100); setEditStatus('Tamamlandı')
+      const blob = await res.blob(); setEditedZipURL(URL.createObjectURL(blob)); setEditProgress(100); setEditStatus('Completed')
     }
     _alive = false; setTimeout(()=> setEditing(false), 350)
   }
@@ -646,7 +646,7 @@ export default function App(){
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-gray-100 dark:from-neutral-950 dark:to-neutral-900 text-gray-900 dark:text-gray-200">
     
-      {/* ÜST BAR */}
+      {/* TOP BAR */}
       <header className="toolbar">
         <div className="max-w-5xl mx-auto px-4 py-2 flex items-center gap-2">
           <Package className="w-5 h-5" />
@@ -679,7 +679,7 @@ export default function App(){
 
       <main className="max-w-5xl mx-auto p-4">
 
-        {/* Dosya seçimi & Plan özetinin aynı kartta gösterimi */}
+        {/* File selection & Plan summary shown in the same card */}
         <div className="grid md:grid-cols-3 gap-4">
           <section className="md:col-span-2 card-surface p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -786,7 +786,7 @@ export default function App(){
           </section>
         </div>
 
-        {/* AI Düzenleme */}
+        {/* AI Editing */}
         <section className="card-surface p-4 mt-6">
           <div className="flex items-center gap-2 mb-3">
             <Sparkles className="w-4 h-4"/>
@@ -808,13 +808,13 @@ export default function App(){
               <span className="text-sm w-56">{t('langForAI')}</span>
               <select className="border rounded-lg px-2 py-1" value={editLang} onChange={(e)=>setEditLang(e.target.value as Lang)}>
                 <option value="auto">auto</option>
-                <option value="tr">Türkçe</option>
+                <option value="tr">Turkish</option>
                 <option value="en">English</option>
-                <option value="de">Deutsch</option>
-                <option value="fr">Français</option>
-                <option value="es">Español</option>
-                <option value="ru">Русский</option>
-                <option value="ar">العربية</option>
+                <option value="de">German</option>
+                <option value="fr">French</option>
+                <option value="es">Spanish</option>
+                <option value="ru">Russian</option>
+                <option value="ar">Arabic</option>
               </select>
               <TooltipIcon text={t('langForAIHelp')}/>
             </div>
@@ -895,7 +895,7 @@ export default function App(){
                 style={{ width: `${editProgress}%`, transition: "width .35s ease" }}
               />
             </div>
-            <div className="mt-3 text-xs text-gray-500">Bu işlem sisteminizin hızına ve modelin yanıtına göre değişebilir.</div>
+            <div className="mt-3 text-xs text-gray-500">This process may vary depending on your system speed and the model's response.</div>
           </div>
         </div>
       )}
