@@ -4,16 +4,27 @@
 
 /* ===== Base (full screen and background) ===== */
 @layer base {
-  html, body, #root { height: 100%; min-height: 100vh; }
+  html,
+  body,
+  #root {
+    height: 100%;
+    min-height: 100vh;
+  }
 
   /* Light background + text */
-  html { @apply bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900; }
+  html {
+    @apply bg-gradient-to-b from-gray-50 to-gray-100 text-gray-900;
+  }
 
   /* Dark background + text (correct selector: html.dark) */
-  html.dark { @apply bg-gradient-to-b from-neutral-950 to-neutral-900 text-gray-200; }
+  html.dark {
+    @apply bg-gradient-to-b from-neutral-950 to-neutral-900 text-gray-200;
+  }
 
   /* Background provided by html; keep body transparent */
-  body { @apply bg-transparent; }
+  body {
+    @apply bg-transparent;
+  }
 }
 
 /* ===== Surfaces ===== */
@@ -45,8 +56,12 @@ html.dark textarea {
 }
 
 /* Placeholder contrast */
-html.dark ::placeholder { color: rgba(229,231,235,.5); }
+html.dark ::placeholder {
+  color: rgba(229, 231, 235, 0.5);
+}
 
 /* React Flow (if any) dark background */
 html.dark .react-flow__renderer,
-html.dark .react-flow { background-color: #0b0f14 !important; }
+html.dark .react-flow {
+  background-color: #0b0f14 !important;
+}

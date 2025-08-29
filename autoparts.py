@@ -33,13 +33,15 @@ from urllib import request, error
 
 # ---------- Data types ----------
 
+
 @dataclass
 class TopLevelItem:
-    name: str                # definition name (or constant name)
-    kind: str                # "class" | "func" | "assign"
-    node: ast.AST            # AST node
-    source: str              # original source segment
-    deps: Set[str] = field(default_factory=set)   # dependencies on other top-level names
+    name: str  # definition name (or constant name)
+    kind: str  # "class" | "func" | "assign"
+    node: ast.AST  # AST node
+    source: str  # original source segment
+    deps: Set[str] = field(default_factory=set)  # dependencies on other top-level names
+
 
 @dataclass
 class Component:
@@ -47,7 +49,9 @@ class Component:
     items: List[TopLevelItem]
     module_name: str
 
+
 # ---------- IO ----------
+
 
 def read_text(p: Path) -> str:
     return p.read_text(encoding="utf-8")
@@ -56,6 +60,7 @@ def read_text(p: Path) -> str:
 def write_text(p: Path, text: str) -> None:
     p.parent.mkdir(parents=True, exist_ok=True)
     p.write_text(text, encoding="utf-8")
+
 
 # ---------- Name/Module name ----------
 
@@ -99,14 +104,52 @@ def module_name_for_component(names: List[str]) -> str:
         base = base[:40].rstrip("_")
     return base or "module"
 
+
 # ---------- AI Name Suggester ----------
 
 TR_STOP = {
-    "ve","ile","da","de","bir","bu","şu","o","için","olan","gibi","çok","az","en",
-    "birlikte","üzerine","üzerinden","olan","yap","yapma","olan","olarak","ama","fakat","ancak",
+    "ve",
+    "ile",
+    "da",
+    "de",
+    "bir",
+    "bu",
+    "şu",
+    "o",
+    "için",
+    "olan",
+    "gibi",
+    "çok",
+    "az",
+    "en",
+    "birlikte",
+    "üzerine",
+    "üzerinden",
+    "olan",
+    "yap",
+    "yapma",
+    "olan",
+    "olarak",
+    "ama",
+    "fakat",
+    "ancak",
 }
 EN_STOP = {
-    "the","a","an","of","and","for","to","in","on","by","with","is","are","from","that",
+    "the",
+    "a",
+    "an",
+    "of",
+    "and",
+    "for",
+    "to",
+    "in",
+    "on",
+    "by",
+    "with",
+    "is",
+    "are",
+    "from",
+    "that",
 }
 
 _WORD_RE = re.compile(r"[A-Za-z0-9_]{3,}")
@@ -129,7 +172,9 @@ def _freq_keywords(text: str, extra: Sequence[str] = ()) -> List[str]:
     return [w for w, _ in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
 
 
-def local_heuristic_name(input_path: Path, src: str, tree: ast.Module, items: List[TopLevelItem]) -> str:
+def local_heuristic_name(
+    input_path: Path, src: str, tree: ast.Module, items: List[TopLevelItem]
+) -> str:
     """Heuristically suggest a package name by extracting keywords from docstring and early comments."""
     doc = ast.get_docstring(tree) or ""
     top_names = [it.name for it in items]
@@ -147,7 +192,9 @@ def local_heuristic_name(input_path: Path, src: str, tree: ast.Module, items: Li
     return to_snake(base)
 
 
-def ai_chat_openai(messages: List[Dict[str, str]], model: str, base_url: Optional[str] = None) -> Optional[str]:
+def ai_chat_openai(
+    messages: List[Dict[str, str]], model: str, base_url: Optional[str] = None
+) -> Optional[str]:
     key = os.getenv("OPENAI_API_KEY")
     if not key:
         return None
@@ -162,7 +209,9 @@ def ai_chat_openai(messages: List[Dict[str, str]], model: str, base_url: Optiona
     req.add_header("Authorization", f"Bearer {key}")
     req.add_header("Content-Type", "application/json")
     try:
-        resp = request.urlopen(req, data=json.dumps(payload).encode("utf-8"), timeout=20)
+        resp = request.urlopen(
+            req, data=json.dumps(payload).encode("utf-8"), timeout=20
+        )
         data = json.loads(resp.read().decode("utf-8"))
         content = data["choices"][0]["message"]["content"].strip()
         return content
@@ -170,7 +219,9 @@ def ai_chat_openai(messages: List[Dict[str, str]], model: str, base_url: Optiona
         return None
 
 
-def ai_chat_ollama(messages: List[Dict[str, str]], model: str, base_url: Optional[str] = None) -> Optional[str]:
+def ai_chat_ollama(
+    messages: List[Dict[str, str]], model: str, base_url: Optional[str] = None
+) -> Optional[str]:
     # Only allow requests to localhost Ollama instance for security
     ALLOWED_OLLAMA_BASE_URLS = {"http://localhost:11434", "http://127.0.0.1:11434"}
     ollama_url = base_url or "http://localhost:11434"
@@ -183,7 +234,9 @@ def ai_chat_ollama(messages: List[Dict[str, str]], model: str, base_url: Optiona
     req = request.Request(url, method="POST")
     req.add_header("Content-Type", "application/json")
     try:
-        resp = request.urlopen(req, data=json.dumps(payload).encode("utf-8"), timeout=20)
+        resp = request.urlopen(
+            req, data=json.dumps(payload).encode("utf-8"), timeout=20
+        )
         data = json.loads(resp.read().decode("utf-8"))
         content = data.get("response", "").strip()
         return content
@@ -191,8 +244,16 @@ def ai_chat_ollama(messages: List[Dict[str, str]], model: str, base_url: Optiona
         return None
 
 
-def ai_suggest_name(input_path: Path, src: str, tree: ast.Module, items: List[TopLevelItem], *,
-                    provider: Optional[str], model: Optional[str], base_url: Optional[str]) -> Optional[str]:
+def ai_suggest_name(
+    input_path: Path,
+    src: str,
+    tree: ast.Module,
+    items: List[TopLevelItem],
+    *,
+    provider: Optional[str],
+    model: Optional[str],
+    base_url: Optional[str],
+) -> Optional[str]:
     """
     Ask an AI provider (OpenAI or Ollama) for a concise snake_case package name.
     Returns `None` on failure or if constraints are not met.
@@ -208,7 +269,10 @@ def ai_suggest_name(input_path: Path, src: str, tree: ast.Module, items: List[To
         "and top-level names. Return ONLY the name."
     )
     user_prompt = f"Docstring: {brief}\nTop-level names: {top_names}\nCurrent file: {input_path.name}"
-    msgs = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]
+    msgs = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
     raw = None
     if provider == "openai":
         raw = ai_chat_openai(msgs, model=model, base_url=base_url)
@@ -221,7 +285,9 @@ def ai_suggest_name(input_path: Path, src: str, tree: ast.Module, items: List[To
         return cand
     return None
 
+
 # ---------- AST Analysis ----------
+
 
 class DependencyVisitor(ast.NodeVisitor):
     """Find usage of top-level names within a node (Load/Name) + annotations/decorators/bases.
@@ -279,7 +345,9 @@ def get_source_segment(source: str, node: ast.AST) -> str:
     return "" if seg is None else seg
 
 
-def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLevelItem], List[str], Optional[str], Optional[str]]:
+def extract_top_level_items(
+    source: str, tree: ast.Module
+) -> Tuple[List[TopLevelItem], List[str], Optional[str], Optional[str]]:
     """Returns (items, imports, main_block_src, module_docstring)."""
     items: List[TopLevelItem] = []
     imports: List[str] = []
@@ -312,9 +380,13 @@ def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLeve
             if seg:
                 main_block = seg
         elif isinstance(node, ast.ClassDef):
-            items.append(TopLevelItem(node.name, "class", node, get_source_segment(source, node)))
+            items.append(
+                TopLevelItem(node.name, "class", node, get_source_segment(source, node))
+            )
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-            items.append(TopLevelItem(node.name, "func", node, get_source_segment(source, node)))
+            items.append(
+                TopLevelItem(node.name, "func", node, get_source_segment(source, node))
+            )
         elif isinstance(node, ast.Assign):
             seg = get_source_segment(source, node)
             for t in node.targets:
@@ -335,6 +407,7 @@ def extract_top_level_items(source: str, tree: ast.Module) -> Tuple[List[TopLeve
         it.deps = v.used
 
     return items, imports, main_block, module_doc
+
 
 # ---------- SCC ----------
 
@@ -386,10 +459,13 @@ def strongly_connected_components(graph: Dict[str, Set[str]]) -> List[List[str]]
 
     return components
 
+
 # ---------- Component construction ----------
 
 
-def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[str, str]]:
+def build_components(
+    items: List[TopLevelItem],
+) -> Tuple[List[Component], Dict[str, str]]:
     """
     Group top-level items into SCC-based components and assign initial module names.
 
@@ -409,7 +485,11 @@ def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[s
         comp_items.sort(key=lambda x: x.name.lower())
         module = module_name_for_component([it.name for it in comp_items])
         components.append(
-            Component(names=[it.name for it in comp_items], items=comp_items, module_name=module)
+            Component(
+                names=[it.name for it in comp_items],
+                items=comp_items,
+                module_name=module,
+            )
         )
         for n in comp_names:
             name_to_module[n] = module
@@ -424,6 +504,7 @@ def build_components(items: List[TopLevelItem]) -> Tuple[List[Component], Dict[s
 
     components.sort(key=external_dep_count)
     return components, name_to_module
+
 
 # ---------- Re-pack (GROUPING / PACKAGING) ----------
 
@@ -440,7 +521,9 @@ def _assign_only(c: Component) -> bool:
     return all(it.kind == "assign" for it in c.items)
 
 
-def merge_components(a: Component, b: Component, new_name: Optional[str] = None) -> Component:
+def merge_components(
+    a: Component, b: Component, new_name: Optional[str] = None
+) -> Component:
     names = a.names + b.names
     items = a.items + b.items
     mod_name = new_name or module_name_for_component(names)
@@ -494,7 +577,11 @@ def repack_components(
 
     # 2) Pack small modules into 'core'
     if pack_small_lines and pack_small_lines > 0:
-        small = [c for c in comps if _comp_lines(c) < pack_small_lines and not _assign_only(c)]
+        small = [
+            c
+            for c in comps
+            if _comp_lines(c) < pack_small_lines and not _assign_only(c)
+        ]
         if len(small) > 1:
             core = small[0]
             for c in small[1:]:
@@ -525,11 +612,20 @@ def repack_components(
         while changed:
             changed = False
             # If smallest modules are below threshold, merge them
-            smallers = [c for c in comps if _comp_lines(c) < min_module_lines and c.module_name not in {"constants", "core"}]
+            smallers = [
+                c
+                for c in comps
+                if _comp_lines(c) < min_module_lines
+                and c.module_name not in {"constants", "core"}
+            ]
             smallers.sort(key=_comp_lines)
             for s in list(smallers):
                 # Merge with another smallest module
-                others = [c for c in comps if c is not s and c.module_name not in {"constants", "core"}]
+                others = [
+                    c
+                    for c in comps
+                    if c is not s and c.module_name not in {"constants", "core"}
+                ]
                 if not others:
                     break
                 others.sort(key=_comp_lines)
@@ -547,6 +643,7 @@ def repack_components(
     # 5) Rebuild mapping from scratch
     name_to_module = rebuild_name_to_module(comps)
     return comps, name_to_module
+
 
 # ---------- Renderers ----------
 
@@ -660,6 +757,7 @@ def render_main(init_reexport: bool, main_body: str) -> str:
     lines.append("")
     return "\n".join(lines)
 
+
 # ---------- Single-file processing ----------
 
 
@@ -717,7 +815,9 @@ def plan_and_write_single(
     if verbose:
         print(f"\n== Split Plan: {input_file.name} ==")
         for c in components:
-            print(f"  - {c.module_name}: {', '.join(c.names)}  (~{_comp_lines(c)} lines)")
+            print(
+                f"  - {c.module_name}: {', '.join(c.names)}  (~{_comp_lines(c)} lines)"
+            )
         if main_block:
             print("  - __main__.py: if __name__ == '__main__' block will be moved")
         print("")
@@ -731,8 +831,13 @@ def plan_and_write_single(
         final_pkg_name = to_snake(final_pkg_name)
     if not final_pkg_name and ai_name:
         ai = ai_suggest_name(
-            input_file, src, tree, items,
-            provider=ai_provider, model=ai_model, base_url=ai_base_url,
+            input_file,
+            src,
+            tree,
+            items,
+            provider=ai_provider,
+            model=ai_model,
+            base_url=ai_base_url,
         )
         if ai:
             final_pkg_name = ai
@@ -777,6 +882,7 @@ def plan_and_write_single(
     print(f"[✓] Package ready: {package_dir}")
     return True
 
+
 # ---------- Batch mode ----------
 
 
@@ -808,7 +914,13 @@ def discover_python_files(
 
     ex_patterns = list(exclude_globs)
     if ignore_tests:
-        ex_patterns += ["tests/**", "test_*.py", "*_test.py", "**/tests/**", "**/test/**"]
+        ex_patterns += [
+            "tests/**",
+            "test_*.py",
+            "*_test.py",
+            "**/tests/**",
+            "**/test/**",
+        ]
     ex_patterns = list(dict.fromkeys(ex_patterns))
 
     def is_excluded(p: Path) -> bool:
@@ -826,7 +938,10 @@ def discover_python_files(
         if is_excluded(p):
             continue
         try:
-            if min_lines > 0 and sum(1 for _ in p.open("r", encoding="utf-8")) < min_lines:
+            if (
+                min_lines > 0
+                and sum(1 for _ in p.open("r", encoding="utf-8")) < min_lines
+            ):
                 continue
         except Exception:
             pass
@@ -922,6 +1037,7 @@ def batch_process(
     print(f"\n[✓] Batch process completed. Successful: {ok}/{len(to_process)}")
     return ok
 
+
 # ---------- CLI ----------
 
 
@@ -933,35 +1049,112 @@ def main():
         )
     )
     ap.add_argument("inputs", nargs="+", help=".py file(s) or directories to split")
-    ap.add_argument("-o", "--out-dir", default=None, help="Output root directory (default: source file location)")
-    ap.add_argument("--pkg-name", default=None, help="[SINGLE FILE] Package name to create (default: AI/heuristic)")
-    ap.add_argument("--pkg-prefix", default="", help="[BATCH] Prefix to add to package names (e.g., proj_)")
-    ap.add_argument("--dry-run", action="store_true", help="Only print the plan, do not write files")
-    ap.add_argument("--force", action="store_true", help="Overwrite output directory if it exists")
+    ap.add_argument(
+        "-o",
+        "--out-dir",
+        default=None,
+        help="Output root directory (default: source file location)",
+    )
+    ap.add_argument(
+        "--pkg-name",
+        default=None,
+        help="[SINGLE FILE] Package name to create (default: AI/heuristic)",
+    )
+    ap.add_argument(
+        "--pkg-prefix",
+        default="",
+        help="[BATCH] Prefix to add to package names (e.g., proj_)",
+    )
+    ap.add_argument(
+        "--dry-run", action="store_true", help="Only print the plan, do not write files"
+    )
+    ap.add_argument(
+        "--force", action="store_true", help="Overwrite output directory if it exists"
+    )
 
     # Batch mode options
-    ap.add_argument("--batch", action="store_true", help="Run in batch mode for directory inputs")
-    ap.add_argument("--recursive", action="store_true", help="Scan subdirectories in batch mode")
-    ap.add_argument("--include", action="append", default=["*.py"], help="Include patterns (glob). Can be used multiple times.")
-    ap.add_argument("--exclude", action="append", default=[], help="Exclude patterns (glob). Can be used multiple times.")
-    ap.add_argument("--ignore-tests", action="store_true", help="Skip tests/ directories and test files")
-    ap.add_argument("--min-lines", type=int, default=0, help="Skip files with fewer lines than this (e.g., 80)")
+    ap.add_argument(
+        "--batch", action="store_true", help="Run in batch mode for directory inputs"
+    )
+    ap.add_argument(
+        "--recursive", action="store_true", help="Scan subdirectories in batch mode"
+    )
+    ap.add_argument(
+        "--include",
+        action="append",
+        default=["*.py"],
+        help="Include patterns (glob). Can be used multiple times.",
+    )
+    ap.add_argument(
+        "--exclude",
+        action="append",
+        default=[],
+        help="Exclude patterns (glob). Can be used multiple times.",
+    )
+    ap.add_argument(
+        "--ignore-tests",
+        action="store_true",
+        help="Skip tests/ directories and test files",
+    )
+    ap.add_argument(
+        "--min-lines",
+        type=int,
+        default=0,
+        help="Skip files with fewer lines than this (e.g., 80)",
+    )
 
     # Grouping/pack options (legacy + new)
     ap.set_defaults(group_assignments=True)
-    ap.add_argument("--no-group-assignments", dest="group_assignments", action="store_false", help="Disable grouping assignments into a single module")
-    ap.add_argument("--pack-small-lines", type=int, default=40, help="Collect modules below this line count into 'core' (0=off)")
-    ap.add_argument("--max-modules", type=int, default=12, help="Maximum number of modules (merges smallest except constants/core)")
-    ap.add_argument("--min-module-lines", type=int, default=0, help="Minimum lines per module; merge below this (0=off)")
-    ap.add_argument("--target-modules", type=int, default=None, help="Target module count; merge smallest to reach it")
+    ap.add_argument(
+        "--no-group-assignments",
+        dest="group_assignments",
+        action="store_false",
+        help="Disable grouping assignments into a single module",
+    )
+    ap.add_argument(
+        "--pack-small-lines",
+        type=int,
+        default=40,
+        help="Collect modules below this line count into 'core' (0=off)",
+    )
+    ap.add_argument(
+        "--max-modules",
+        type=int,
+        default=12,
+        help="Maximum number of modules (merges smallest except constants/core)",
+    )
+    ap.add_argument(
+        "--min-module-lines",
+        type=int,
+        default=0,
+        help="Minimum lines per module; merge below this (0=off)",
+    )
+    ap.add_argument(
+        "--target-modules",
+        type=int,
+        default=None,
+        help="Target module count; merge smallest to reach it",
+    )
 
     # COMPACT preset
-    ap.add_argument("--compact", type=int, choices=[0, 1, 2, 3], default=None, help="0=off, 1=low, 2=medium, 3=aggressive module reduction")
+    ap.add_argument(
+        "--compact",
+        type=int,
+        choices=[0, 1, 2, 3],
+        default=None,
+        help="0=off, 1=low, 2=medium, 3=aggressive module reduction",
+    )
 
     # AI naming
-    ap.add_argument("--ai-name", action="store_true", help="Suggest package name with AI")
-    ap.add_argument("--ai-provider", choices=["openai", "ollama"], default=None, help="AI provider")
-    ap.add_argument("--ai-model", default=None, help="AI model (e.g., gpt-4o-mini / mistral)")
+    ap.add_argument(
+        "--ai-name", action="store_true", help="Suggest package name with AI"
+    )
+    ap.add_argument(
+        "--ai-provider", choices=["openai", "ollama"], default=None, help="AI provider"
+    )
+    ap.add_argument(
+        "--ai-model", default=None, help="AI model (e.g., gpt-4o-mini / mistral)"
+    )
     ap.add_argument("--ai-base-url", default=None, help="AI API base URL (optional)")
 
     args = ap.parse_args()

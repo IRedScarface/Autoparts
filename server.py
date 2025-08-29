@@ -19,8 +19,6 @@ from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 
-
-
 # autoparts.py aynı klasörde olmalı
 from autoparts import (
     _comp_lines as comp_lines,
@@ -54,6 +52,7 @@ app.add_middleware(
 
 # ---------------------------- Routes: Health --------------------------
 
+
 @app.get("/")
 def root():
     return {
@@ -79,16 +78,14 @@ def health():
 # ----------------------------- Utilities -----------------------------
 
 
-
-
 def resource_path(rel):
     base = getattr(sys, "_MEIPASS", None)  # PyInstaller içinden çalışırken
     return os.path.join(base if base else os.path.abspath("."), rel)
 
+
 STATIC_DIR = resource_path("ui/dist")
 if os.path.isdir(STATIC_DIR):
     app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
-
 
 
 def _clamp(v: int, lo: int, hi: int) -> int:
@@ -194,7 +191,7 @@ def _postprocess_module_file(path: Path) -> None:
 def _write_runner_single(
     pkg_name: str, out_dir: Path, modules: List[str], has_main: bool
 ) -> None:
-    runner = f'''# Auto-generated runner for package: {pkg_name}
+    runner = f"""# Auto-generated runner for package: {pkg_name}
 import importlib, inspect, runpy, sys
 PKG = "{pkg_name}"; MODULES = {modules!r}; HAS_MAIN = {bool(has_main)}
 def _call_if_exists(mod, names=('main','run','demo')):
@@ -220,13 +217,13 @@ if __name__ == "__main__":
         for m in sel:
             mod = importlib.import_module(f"{pkg_name}."+m); _call_if_exists(mod)
     else: run_all()
-'''
+"""
     (out_dir / "run_all.py").write_text(runner, encoding="utf-8")
 
 
 def _write_runner_multi(pkg_infos: List[Dict[str, Any]], root_out: Path) -> None:
     pkgs = [(p["name"], p["modules"], p["has_main"]) for p in pkg_infos]
-    runner = f'''# Auto-generated multi-package runner
+    runner = f"""# Auto-generated multi-package runner
 import importlib, inspect, runpy, sys
 PKGS = {pkgs!r}
 def _call_if_exists(mod, names=('main','run','demo')):
@@ -255,7 +252,7 @@ if __name__ == "__main__":
         for name, modules, has_main in PKGS:
             if name in want: run_pkg(name, modules, has_main)
     else: run_all()
-'''
+"""
     (root_out / "run_all.py").write_text(runner, encoding="utf-8")
 
 
@@ -288,6 +285,7 @@ def _detect_language_label(language: str) -> str:
 
 
 # ------------------- Model I/O: robustness helpers -------------------
+
 
 def _strip_code_fences(text: str) -> str:
     """
@@ -344,6 +342,7 @@ def _ollama_generate(prompt: str, base_url: str, model: str, timeout: int = 90) 
 
 # ------------- Local deterministic fallback: basic refactor -----------
 
+
 def _format_docstring_for_function(node: ast.FunctionDef, lang: str) -> str:
     """Return a minimal, placeholder-free docstring for a function."""
     name = getattr(node, "name", "function")
@@ -353,20 +352,28 @@ def _format_docstring_for_function(node: ast.FunctionDef, lang: str) -> str:
         if getattr(a, "arg", "")
     ]
     if lang == "en":
-        return f"Function {name}." if not args else f"Function {name}. Parameters: {', '.join(args)}."
+        return (
+            f"Function {name}."
+            if not args
+            else f"Function {name}. Parameters: {', '.join(args)}."
+        )
     # Turkish
-    return f"{name} fonksiyonu." if not args else f"{name} fonksiyonu. Parametreler: {', '.join(args)}."
+    return (
+        f"{name} fonksiyonu."
+        if not args
+        else f"{name} fonksiyonu. Parametreler: {', '.join(args)}."
+    )
 
 
 def _format_docstring_for_class(node: ast.ClassDef, lang: str) -> str:
     """Return a minimal, placeholder-free docstring for a class."""
     name = getattr(node, "name", "Class")
-    return (f"Class {name}." if lang == "en" else f"{name} sınıfı.")
+    return f"Class {name}." if lang == "en" else f"{name} sınıfı."
 
 
 def _format_docstring_for_module(lang: str) -> str:
     """Return a minimal, placeholder-free module docstring."""
-    return ("Module description." if lang == "en" else "Modül açıklaması.")
+    return "Module description." if lang == "en" else "Modül açıklaması."
 
 
 class _UsedNames(ast.NodeVisitor):
@@ -390,7 +397,9 @@ def _remove_unused_imports(tree: ast.Module) -> ast.Module:
     new_body = []
     for node in tree.body:
         if isinstance(node, ast.Import):
-            kept = [a for a in node.names if (a.asname or a.name.split(".")[0]) in used.used]
+            kept = [
+                a for a in node.names if (a.asname or a.name.split(".")[0]) in used.used
+            ]
             if kept:
                 node.names = kept
                 new_body.append(node)
@@ -414,7 +423,9 @@ def _ensure_docstrings(tree: ast.Module, language: str) -> ast.Module:
         and isinstance(getattr(tree.body[0], "value", None), ast.Constant)
         and isinstance(tree.body[0].value.value, str)
     ):
-        tree.body.insert(0, ast.Expr(value=ast.Constant(value=_format_docstring_for_module(lang))))
+        tree.body.insert(
+            0, ast.Expr(value=ast.Constant(value=_format_docstring_for_module(lang)))
+        )
     # function & class docstrings
     for node in ast.walk(tree):
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
@@ -425,7 +436,12 @@ def _ensure_docstrings(tree: ast.Module, language: str) -> ast.Module:
                 and isinstance(node.body[0].value.value, str)
             ):
                 node.body.insert(
-                    0, ast.Expr(value=ast.Constant(value=_format_docstring_for_function(node, lang)))
+                    0,
+                    ast.Expr(
+                        value=ast.Constant(
+                            value=_format_docstring_for_function(node, lang)
+                        )
+                    ),
                 )
         elif isinstance(node, ast.ClassDef):
             if not (
@@ -435,7 +451,12 @@ def _ensure_docstrings(tree: ast.Module, language: str) -> ast.Module:
                 and isinstance(node.body[0].value.value, str)
             ):
                 node.body.insert(
-                    0, ast.Expr(value=ast.Constant(value=_format_docstring_for_class(node, lang)))
+                    0,
+                    ast.Expr(
+                        value=ast.Constant(
+                            value=_format_docstring_for_class(node, lang)
+                        )
+                    ),
                 )
     return tree
 
@@ -451,7 +472,9 @@ def _sort_imports(tree: ast.Module) -> ast.Module:
             others.append(node)
     imports.sort(key=lambda n: ", ".join(a.asname or a.name for a in n.names))
     from_imports.sort(
-        key=lambda n: (n.module or "") + ":" + ", ".join(a.asname or a.name for a in n.names)
+        key=lambda n: (n.module or "")
+        + ":"
+        + ", ".join(a.asname or a.name for a in n.names)
     )
     tree.body = imports + from_imports + others
     return tree
@@ -524,7 +547,11 @@ def _local_edit(src: str, instruction: str, language: str) -> str:
     if not any(l.strip() == "from __future__ import annotations" for l in lines[:5]):
         insert_at = 0
         for i, l in enumerate(lines[:10]):
-            if l.startswith("#!") or l.startswith("# -*-") or l.startswith("# Generated"):
+            if (
+                l.startswith("#!")
+                or l.startswith("# -*-")
+                or l.startswith("# Generated")
+            ):
                 insert_at = i + 1
         lines.insert(insert_at, "from __future__ import annotations")
         new_src = "\n".join(lines)
@@ -552,7 +579,6 @@ PROMPT_TEMPLATES = {
 - If no changes are needed, return the original file exactly.
 {lang_directive}
 """,
-
     "user_editor": """# METADATA
 FILENAME: {filename}
 LANGUAGE: python
@@ -578,7 +604,6 @@ PYTHON_VERSION: {py_version}
 ...full revised file content...
 </FILE>
 """,
-
     "gen_editor": """You are a senior Python refactoring assistant.
 - Output a single complete Python file (no Markdown, no commentary).
 - Keep behavior unless the instruction says otherwise; preserve headers, public API, CLI behavior, dunders.
@@ -595,13 +620,12 @@ PYTHON_VERSION: {py_version}
 {src}
 
 ### Edited code (raw Python only)
-"""
+""",
 }
 
 
-
-
 # --------------------------- AI editing core --------------------------
+
 
 def _try_parse_python(text: str) -> bool:
     try:
@@ -610,16 +634,22 @@ def _try_parse_python(text: str) -> bool:
     except Exception:
         return False
 
+
 # --- yardımcı kontroller (bir kez ekleyin) ---
 _FORBIDDEN_TOKENS_RE = re.compile(r"\b(?:TODO|TBD|FIXME)\b", re.IGNORECASE)
 # ör. '"""doc"""' gibi tek tırnak içine gömülü üçlü çift tırnak artefaktlarını yakalar
-_QUOTE_ARTIFACTS_RE = re.compile(r"(\'\s*\"\"\"|\"\"\"\s*\'|\'\'\'\s*\"\"\"|\"\"\"\s*\'\'\')")
+_QUOTE_ARTIFACTS_RE = re.compile(
+    r"(\'\s*\"\"\"|\"\"\"\s*\'|\'\'\'\s*\"\"\"|\"\"\"\s*\'\'\')"
+)
+
 
 def _has_forbidden_tokens(text: str) -> bool:
     return bool(_FORBIDDEN_TOKENS_RE.search(text or ""))
 
+
 def _has_docstring_quote_artifacts(text: str) -> bool:
     return bool(_QUOTE_ARTIFACTS_RE.search(text or ""))
+
 
 def _passes_strict_validations(text: str) -> bool:
     if not text or not text.strip():
@@ -653,7 +683,10 @@ def get_ai_edited(
         instruction=instruction,
         src=src,
     )
-    messages = [{"role": "system", "content": sys_prompt}, {"role": "user", "content": user_prompt}]
+    messages = [
+        {"role": "system", "content": sys_prompt},
+        {"role": "user", "content": user_prompt},
+    ]
     raw = ai_chat_ollama(messages, model=model, base_url=base_url) or ""
     m = re.search(r"<FILE>(.*)</FILE>", raw, flags=re.DOTALL | re.IGNORECASE)
     edited = _strip_code_fences((m.group(1) if m else raw).strip())
@@ -680,7 +713,9 @@ def license_txt():
     with open(resource_path("LICENSE"), "r", encoding="utf-8") as f:
         return PlainTextResponse(f.read())
 
+
 # ------------------------------ API'ler -------------------------------
+
 
 @app.post("/plan")
 async def plan(
@@ -823,7 +858,9 @@ async def build(
                 base_url=ollama_base_url,
             )
         if not final_pkg:
-            final_pkg = (Path(file.filename or "pkg").stem.replace("-", "_") or "module").lower()
+            final_pkg = (
+                Path(file.filename or "pkg").stem.replace("-", "_") or "module"
+            ).lower()
 
         out_dir = workdir / final_pkg
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -889,9 +926,9 @@ async def build_multi(
                 tree = ast.parse(src)
             except SyntaxError as e:
                 # Hatalı dosyayı atla ve rapora ekle
-                (root_out / f"ERROR_{Path(f.filename or 'file.py').name}.txt").write_text(
-                    f"SyntaxError: {e}", encoding="utf-8"
-                )
+                (
+                    root_out / f"ERROR_{Path(f.filename or 'file.py').name}.txt"
+                ).write_text(f"SyntaxError: {e}", encoding="utf-8")
                 continue
 
             items, imports, main_block, mod_doc = extract_top_level_items(src, tree)
@@ -918,7 +955,9 @@ async def build_multi(
                     base_url=ollama_base_url,
                 )
             if not pkg_name:
-                pkg_name = (Path(f.filename or "pkg").stem.replace("-", "_") or "module").lower()
+                pkg_name = (
+                    Path(f.filename or "pkg").stem.replace("-", "_") or "module"
+                ).lower()
 
             base = pkg_name
             suff = 2
@@ -949,7 +988,9 @@ async def build_multi(
                 has_main = True
 
             _write_runner_single(pkg_name, out_dir, module_names, has_main)
-            pkg_infos.append({"name": pkg_name, "modules": module_names, "has_main": has_main})
+            pkg_infos.append(
+                {"name": pkg_name, "modules": module_names, "has_main": has_main}
+            )
 
         _write_runner_multi(pkg_infos, root_out)
 
@@ -966,6 +1007,7 @@ async def build_multi(
 
 # -------------------------- AI edit endpoints -------------------------
 
+
 @app.post("/ai_edit")
 async def ai_edit(
     file: UploadFile = File(...),
@@ -980,7 +1022,12 @@ async def ai_edit(
         or "Refactor the code for clarity, add missing docstrings, complete type hints, and remove unused imports."
     )
     edited = get_ai_edited(
-        src, file.filename or "input.py", instruction, language, ollama_base_url, ollama_model
+        src,
+        file.filename or "input.py",
+        instruction,
+        language,
+        ollama_base_url,
+        ollama_model,
     )
     return JSONResponse({"edited": edited})
 
@@ -1000,7 +1047,10 @@ async def ai_edit_multi(
     if file:
         uploads.append(file)
     if not uploads:
-        return JSONResponse({"error": "No files received. Send 'files' (list) or 'file'."}, status_code=400)
+        return JSONResponse(
+            {"error": "No files received. Send 'files' (list) or 'file'."},
+            status_code=400,
+        )
 
     instruction = (
         instruction
@@ -1013,7 +1063,12 @@ async def ai_edit_multi(
         for idx, f in enumerate(uploads):
             src = (await f.read()).decode("utf-8", errors="replace")
             edited = get_ai_edited(
-                src, f.filename or f"file_{idx}.py", instruction, language, ollama_base_url, ollama_model
+                src,
+                f.filename or f"file_{idx}.py",
+                instruction,
+                language,
+                ollama_base_url,
+                ollama_model,
             )
             safe = Path(f.filename or f"file_{idx}.py").name
             (out_dir / f"{idx:03d}_{safe}").write_text(edited, encoding="utf-8")
