@@ -171,7 +171,13 @@ def ai_chat_openai(messages: List[Dict[str, str]], model: str, base_url: Optiona
 
 
 def ai_chat_ollama(messages: List[Dict[str, str]], model: str, base_url: Optional[str] = None) -> Optional[str]:
-    url = (base_url or "http://localhost:11434") + "/api/generate"
+    # Only allow requests to localhost Ollama instance for security
+    ALLOWED_OLLAMA_BASE_URLS = {"http://localhost:11434", "http://127.0.0.1:11434"}
+    ollama_url = base_url or "http://localhost:11434"
+    if ollama_url not in ALLOWED_OLLAMA_BASE_URLS:
+        # Reject or fallback -- here, fallback to default localhost
+        ollama_url = "http://localhost:11434"
+    url = ollama_url + "/api/generate"
     prompt = "\n\n".join([m.get("content", "") for m in messages])
     payload = {"model": model, "prompt": prompt, "stream": False}
     req = request.Request(url, method="POST")
