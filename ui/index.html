@@ -1,13 +1,109 @@
 <!doctype html>
-<html lang="tr">
+<html lang="en">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="C:/Users/faruk/Masaüstü/autoparts-ollama-ui/AutoParts.ico" />
+    <!-- SEO/preview description -->
+    <meta name="description" content="Autoparts UI — Automatically detect your username (with a fallback form). Turn Python files into a modular package with a FastAPI backend and React/Vite/Tailwind UI." />
+    <link rel="icon" href="C:/Users/.../Desktop/autoparts-ollama-ui/AutoParts.ico" />
     <title>autoparts UI</title>
+    <style>
+      /* Simple overlay styles */
+      #username-overlay{
+        position:fixed; inset:0; display:none; place-items:center;
+        background:rgba(0,0,0,.45); z-index:9999; font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;
+      }
+      .panel{
+        background:#fff; padding:24px 20px; border-radius:14px; width:min(420px,92vw);
+        box-shadow:0 10px 30px rgba(0,0,0,.25);
+      }
+      .panel h1{ margin:0 0 8px; font-size:20px; }
+      .panel p{ margin:0 0 14px; color:#444; line-height:1.45; }
+      .row{ display:flex; gap:10px; }
+      .row input{
+        flex:1; padding:10px 12px; font-size:15px; border:1px solid #ddd; border-radius:10px; outline:none;
+      }
+      .row button{
+        padding:10px 14px; font-size:15px; border:0; border-radius:10px; cursor:pointer; background:#111; color:#fff;
+      }
+      .muted{ margin-top:10px; font-size:12px; color:#666; }
+    </style>
   </head>
   <body>
-    <div id="root"></div>
+    <!-- Fallback: shown only if auto-detection fails -->
+    <div id="username-overlay" aria-modal="true" role="dialog">
+      <div class="panel">
+        <h1>Welcome! 🎉</h1>
+        <p>We couldn’t detect your username automatically. Please enter your <strong>username</strong>. This is used for personalization and is stored only in your browser.</p>
+        <form id="username-form" class="row">
+          <input id="username-input" type="text" placeholder="e.g. ali_yildiz" autocomplete="username" required />
+          <button type="submit">Continue</button>
+        </form>
+        <div class="muted">localStorage key: <code>ap_username</code>. You can change it later in settings.</div>
+      </div>
+    </div>
+
+    <!-- React app root -->
+    <div id="root">
+      <!-- Shown if JS is disabled -->
+      <noscript>Please enable JavaScript to use this app.</noscript>
+    </div>
+
+    <!-- Auto username detection -->
+    <script>
+      (function () {
+        const KEY = "ap_username";
+        const overlay = document.getElementById("username-overlay");
+        const form = document.getElementById("username-form");
+        const input = document.getElementById("username-input");
+
+        function openOverlay(){ overlay.style.display = "grid"; }
+        function closeOverlay(){ overlay.style.display = "none"; }
+        function saveAndClose(u){ localStorage.setItem(KEY, u); closeOverlay(); }
+
+        // 0) URL override: ?user=alice
+        const urlUser = new URL(location.href).searchParams.get("user");
+        if (urlUser) {
+          const v = urlUser.trim();
+          if (v) { saveAndClose(v); return; }
+        }
+
+        // 1) If already stored, skip
+        const existing = localStorage.getItem(KEY);
+        if (existing) { closeOverlay(); return; }
+
+        // 2) Try backend auto-detection (same-origin /whoami)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1500); // 1.5s timeout
+
+        fetch("/whoami", { signal: controller.signal })
+          .then(r => r.ok ? r.json() : Promise.reject(new Error("bad status")))
+          .then(data => {
+            clearTimeout(timeout);
+            const u = (data && (data.username || data.user || data.name) || "").toString().trim();
+            // Basic validation
+            if (u && /^[a-zA-Z0-9._-]{2,64}$/.test(u)) {
+              saveAndClose(u);
+            } else {
+              openOverlay();
+            }
+          })
+          .catch(() => {
+            clearTimeout(timeout);
+            openOverlay(); // backend missing or cross-origin
+          });
+
+        // 3) Fallback form
+        form.addEventListener("submit", function (e) {
+          e.preventDefault();
+          const v = (input.value || "").trim();
+          if (!v) { input.focus(); return; }
+          saveAndClose(v);
+        });
+      })();
+    </script>
+
+    <!-- React / Vite entry -->
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>
