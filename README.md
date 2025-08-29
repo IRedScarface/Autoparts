@@ -20,6 +20,9 @@ This repository contains a **FastAPI backend** (`server.py` + `autoparts.py`) an
 - **AI providers (optional)**: **Ollama** (local) and **OpenAI** (cloud) for name suggestions and small, safe edits.
 
 ---
+![Autoparts UI](assets/ui.png)
+![Autoparts UI](assets/ui_2.png)
+
 
 ## Quick Start
 
