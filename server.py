@@ -24,6 +24,17 @@ from fastapi.staticfiles import StaticFiles
 app = FastAPI()
 
 
+def _safe_in_dir(base: Path, target: Path) -> bool:
+    """
+    Return True if target is a file/folder contained within base.
+    Both paths are resolved and absolute. No symlink following.
+    """
+    try:
+        base, target = base.resolve(), target.resolve()
+        return str(target).startswith(str(base) + os.sep)
+    except Exception as e:
+        return False
+
 
 # autoparts.py must be in the same directory
 from autoparts import (
@@ -858,6 +869,9 @@ async def build(
 
         module_names = []
         for comp in components:
+            # Validate mod_path is safely inside workdir (not just out_dir) for defense-in-depth
+            if not _safe_in_dir(workdir, mod_path):
+                return JSONResponse({"error": f"Module name '{comp.module_name}' results in unsafe file path."}, status_code=400)
             mod_path = out_dir / f"{comp.module_name}.py"
             mod_text = render_module(comp, imports, name_to_module)
             mod_path.write_text(mod_text, encoding="utf-8")
@@ -865,8 +879,10 @@ async def build(
             module_names.append(comp.module_name)
 
         init_text = render_init(components, pkg_doc=mod_doc)
-        (out_dir / "__init__.py").write_text(init_text, encoding="utf-8")
-
+        init_path = out_dir / "__init__.py"
+        if not _safe_in_dir(workdir, init_path):
+            return JSONResponse({"error": "Internal error: unsafe init path."}, status_code=400)
+        init_path.write_text(init_text, encoding="utf-8")
         has_main = False
         if main_block:
             body = extract_main_block_code(main_block)
