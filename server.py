@@ -3,7 +3,7 @@ from __future__ import annotations
 import ast
 import io
 import json as _json
-import os, sys
+import os, sys, getpass
 import re
 import shutil
 import sys
@@ -18,6 +18,9 @@ from fastapi.responses import JSONResponse, StreamingResponse
 from fastapi.responses import PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
+
+
+app = FastAPI()
 
 
 
@@ -169,6 +172,15 @@ def analyze_source(
         "module_doc": (ast.get_docstring(tree) or "").strip(),
         "edges": edges,
     }
+
+
+
+@app.get("/whoami")
+def whoami():
+    # Windows -> USERNAME, Unix -> USER
+    user = os.getenv("USERNAME") or os.getenv("USER") or getpass.getuser() or ""
+    safe = "".join(ch for ch in user if ch.isalnum() or ch in ("_", "-", "."))
+    return {"username": safe}
 
 
 def _inject_future_annotations(py_text: str) -> str:
