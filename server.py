@@ -809,7 +809,8 @@ async def build(
         try:
             tree = ast.parse(src)
         except SyntaxError as e:
-            return JSONResponse({"error": f"SyntaxError: {e}"}, status_code=400)
+            logging.exception("Syntax error while parsing user input code")
+            return JSONResponse({"error": "Syntax error in your code. Please check your input."}, status_code=400)
 
         items, imports, main_block, mod_doc = extract_top_level_items(src, tree)
 
