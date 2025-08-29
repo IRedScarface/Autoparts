@@ -8,6 +8,7 @@ import re
 import shutil
 import sys
 import tempfile
+import logging
 import urllib.request
 import zipfile
 from pathlib import Path
@@ -776,7 +777,9 @@ async def plan_multi(
                 )
             results.append({"filename": f.filename, "plan": p, "ai_name": suggested})
         except SyntaxError as e:
-            results.append({"filename": f.filename, "error": f"SyntaxError: {e}"})
+            import logging
+            logging.exception(f"Syntax error encountered in file {f.filename} during /plan_multi request.")
+            results.append({"filename": f.filename, "error": "Invalid input: syntax error in provided code."})
     return JSONResponse({"files": results})
 
 
