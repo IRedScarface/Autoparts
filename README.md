@@ -11,6 +11,16 @@ This repository contains a **FastAPI backend** (`server.py` + `autoparts.py`) an
 
 ---
 
+## Languages & Tech Stack
+
+- **Input language**: **Python** (`.py`). The packager currently accepts **Python** sources only and outputs a structured **Python package** (with `__init__.py` and `__main__.py`).  
+- **Backend**: **Python 3.10+**, **FastAPI**, **Uvicorn**, `python-multipart`; optional **Black** for formatting.  
+- **Frontend**: **TypeScript** + **React** + **Vite** + **Tailwind CSS**.  
+- **HTTP/CLI**: Examples use **cURL**, but any HTTP client works.  
+- **AI providers (optional)**: **Ollama** (local) and **OpenAI** (cloud) for name suggestions and small, safe edits.
+
+---
+
 ## Quick Start
 
 ### 1) Requirements
@@ -122,13 +132,3 @@ ui/                # React + Vite + Tailwind web UI
 
 ---
 
-## Development Tips
-- **CORS** is permissive for local development; tighten `allow_origins` for production.
-- If **Black** is installed, generated modules are formatted automatically.
-- For OpenAI, set `OPENAI_API_KEY` in `.env`.
-- For Ollama, set `OLLAMA_BASE_URL` and `OLLAMA_MODEL` in `.env`.
-
----
-
-## License
-Add your preferred license text here (e.g., MIT).
