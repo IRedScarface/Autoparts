@@ -49,12 +49,17 @@ pip install -r requirements.txt
 Create a `.env` file (you can copy from `.env.example`):
 ```
 # .env
-# If you want to use Ollama locally:
+# Default AI settings for the CLI
+AI_PROVIDER=openai  # or 'ollama'
+AI_MODEL=gpt-4o-mini
+AI_BASE_URL=https://api.openai.com/v1
+
+# OpenAI API key
+OPENAI_API_KEY=sk-...
+
+# Ollama defaults for server endpoints
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_MODEL=llama3.1
-
-# If you want to use OpenAI:
-OPENAI_API_KEY=sk-...
 ```
 > Both Ollama and OpenAI are optional. If AI naming fails or is disabled, a local naming fallback is used.
 

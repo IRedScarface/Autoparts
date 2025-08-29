@@ -8,6 +8,7 @@ __pycache__/
 venv/
 .env
 .env.*
+!.env.example
 
 # Node / Vite
 ui/node_modules/
